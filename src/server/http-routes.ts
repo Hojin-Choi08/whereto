@@ -30,6 +30,12 @@ import {
 } from 'deepspace/worker'
 import type { ExpoAuthBridgeOptions, JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
 import { integrations } from '../integrations.js'
+import {
+  clearReturnToCookie,
+  readReturnTo,
+  redirectWithCookies,
+  setReturnToCookie,
+} from './return-to-cookie.js'
 import type { AppContext, Env } from '../../worker.js'
 
 function jwtConfig(env: Env): JwtVerifierConfig {
@@ -90,8 +96,13 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
     const appOrigin = new URL(c.req.url).origin
     const authOrigin = new URL(c.env.AUTH_WORKER_URL).origin
 
-    return c.redirect(
+    // Remember the room link to land on after sign-in (validated; anything
+    // else — or no param — clears a stale cookie so it can't hijack this login).
+    const returnToCookie = setReturnToCookie(c.req.query('returnTo')) ?? clearReturnToCookie()
+
+    return redirectWithCookies(
       `${authOrigin}/login/social?provider=${encodeURIComponent(provider)}&returnTo=${encodeURIComponent(appOrigin)}`,
+      [returnToCookie],
     )
   })
 
@@ -106,7 +117,12 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
     // would strand the user; `/home` is the dynamic app boundary.
     const appHome = `${appOrigin}/home`
 
-    if (!code) return c.redirect(appHome)
+    // The return-to cookie is single-use: cleared on every exit below, and
+    // honoured only when sign-in actually succeeded.
+    const returnTo = readReturnTo(c.req.header('Cookie'))
+    const clearReturnTo = clearReturnToCookie()
+
+    if (!code) return redirectWithCookies(appHome, [clearReturnTo])
 
     const res = await authWorkerFetch(c.env, '/api/auth/exchange-code', {
       method: 'POST',
@@ -114,18 +130,15 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
       body: JSON.stringify({ code }),
     })
 
-    if (!res.ok) return c.redirect(appHome)
+    if (!res.ok) return redirectWithCookies(appHome, [clearReturnTo])
     const data = (await res.json()) as { sessionToken?: string }
-    if (!data.sessionToken) return c.redirect(appHome)
+    if (!data.sessionToken) return redirectWithCookies(appHome, [clearReturnTo])
     const sessionToken = data.sessionToken
 
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: appHome,
-        'Set-Cookie': `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
-      },
-    })
+    return redirectWithCookies(returnTo ? `${appOrigin}${returnTo}` : appHome, [
+      `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
+      clearReturnTo,
+    ])
   })
 
   app.all('/api/auth/sign-out', async (c) => {

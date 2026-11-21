@@ -15,6 +15,7 @@ import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
 import { APP_NAME } from '../constants'
 import type { Role } from '../constants'
 import { nav } from '../nav'
+import { useGatedSignInPanelShown } from './GatedSignIn'
 import { cn } from '../lib/utils'
 import {
   Avatar,
@@ -33,6 +34,7 @@ export default function Navigation() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const gatedPanelShown = useGatedSignInPanelShown()
 
   const profileReady = !isSignedIn || (!userLoading && !!user)
   const userRole = (user?.role ?? 'anonymous') as Role | 'anonymous'
@@ -132,7 +134,8 @@ export default function Navigation() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
+          ) : gatedPanelShown ? null : (
+            // On gated pages the page's own panel is the single sign-in path.
             <button
               data-testid="nav-sign-in-button"
               onClick={() => setShowAuthModal(true)}
