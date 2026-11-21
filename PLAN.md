@@ -165,7 +165,7 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
 1. `tools.get('rooms', roomId)`. Require `hostId === ctx.userId` and `status === 'collecting'`. This is the **only** entry point, so a room gets exactly one run.
 2. Lock: set `status: 'recommending'`. All clients see "thinking…" through the live `rooms` subscription.
 3. Gather the active `team_members`, their `preferences` (filtered to active members; require ≥2), and `CAFES`.
-4. `src/domain/score.ts` (pure function, unit-tested): drop cafés above the group's median `budgetMax`, score the rest by `mustHave` tag overlap and mood fit, and keep the **top 12**.
+4. `src/lib/score.ts` → `rankCafes(prefs, CAFES)` (pure function, unit-tested): drop cafés above the group's median `budgetMax` (relaxing to a penalty if fewer than 3 remain), score the rest by `mustHave` tag overlap and mood fit, and keep the **top 12**.
 5. Call Claude:
    ```ts
    const anthropic = createDeepSpaceAI(env, 'anthropic')             // owner-billed
@@ -211,7 +211,7 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
    - `r/[roomId].tsx`: the `collecting` view, with a share-link copy button, the member list, your preference card (debounced `put`), and live cards for everyone else.
 
    Delete `/dev/team-check`.
-4. `src/domain/score.ts` + `score.test.ts` (Vitest): budget filter, tag scoring, ties, empty group.
+4. `src/lib/score.ts` + `score.test.ts` (Vitest): budget filter, tag scoring, ties, empty group.
 5. Commit → `git push origin main` → `npx deepspace deploy`. Smoke-test the live URL with two accounts.
 
 ### Day 2: AI, voting, result, ship
