@@ -150,7 +150,11 @@ export function WinnerCard({ winnerCafeId, tally }: { winnerCafeId: string; tall
         <MapPin className="size-4 shrink-0" aria-hidden />
         {cafe.address} · {cafe.neighborhood}
       </p>
-      <p className="mt-1 text-sm text-muted-foreground">{BUDGET_LABELS[cafe.priceLevel]} · {cafe.hours}</p>
+      {(cafe.priceLevel || cafe.hours) && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {[cafe.priceLevel && BUDGET_LABELS[cafe.priceLevel], cafe.hours].filter(Boolean).join(' · ')}
+        </p>
+      )}
       <p className="mt-3 text-sm text-foreground">
         {winnerVotes} of {tally.memberCount} {winnerVotes === 1 ? 'vote' : 'votes'}
         {tally.tieBrokenByRank && ' · tie broken by Claude’s ranking'}

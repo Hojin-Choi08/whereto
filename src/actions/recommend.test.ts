@@ -55,7 +55,7 @@ describe('buildPromptData', () => {
     expect(data.area).toBe('Old Town')
     expect(data.MEMBERS).toEqual([
       { name: 'Sam', mood: 'focus', mustHave: ['wifi'], note: 'n'.repeat(200) },
-      { name: 'Ana', budgetMax: 1 },
+      { name: 'Ana' }, // budgetMax is not sent: no café has a price yet
     ])
     expect(data.CANDIDATES.map((x) => x.id)).toEqual(CAFES.slice(0, 2).map((x) => x.id))
   })
@@ -73,9 +73,16 @@ describe('fallbackReason', () => {
     expect(reason).toContain(top.cafe.neighborhood)
   })
 
-  it('has a neutral line when nothing matched, and flags over-budget picks', () => {
+  it('has a neutral line when nothing matched, and never mentions an unknown price', () => {
     const [plain] = rankCafes([], CAFES)
-    expect(fallbackReason(plain)).toMatch(/^A solid all-rounder in /)
-    expect(fallbackReason({ ...plain, overBudget: true })).toContain('above the group')
+    expect(plain.cafe.priceLevel).toBeUndefined()
+    expect(fallbackReason(plain)).toBe(`A solid all-rounder in ${plain.cafe.neighborhood}.`)
+  })
+
+  it('mentions a known price, and flags an over-budget one', () => {
+    const [plain] = rankCafes([], CAFES)
+    const priced = { ...plain, cafe: { ...plain.cafe, priceLevel: 3 as const } }
+    expect(fallbackReason(priced)).toContain('$$$.')
+    expect(fallbackReason({ ...priced, overBudget: true })).toContain("above the group's budget ($$$)")
   })
 })

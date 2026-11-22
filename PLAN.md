@@ -17,7 +17,7 @@ All app data lives in the **single app RecordRoom** (`app:${APP_ID}`, the scaffo
 One file per collection under `src/schemas/`, each registered in `src/schemas.ts` and imported from `deepspace/schema`. Every row also gets the standard envelope (`recordId`, `createdBy`, `createdAt`, `updatedAt`).
 
 ### Static data (not collections)
-- `src/data/cafes.ts`: `export const CAFES: readonly Cafe[]`, about 15 entries `{ id, name, neighborhood, address, mapsUrl, priceLevel: 1|2|3, tags: CafeTag[], noise, hours, blurb }`. Editing the list means a code change and a deploy, which is acceptable for v1.
+- `src/data/cafes.ts`: `export const CAFES: readonly Cafe[]`, 28 verified Kirkland + Bellevue cafés from Hojin's "Ask the barista" corpus (sources and mapping rules in the file header). Shape: `{ id, name, neighborhood, address, tags: CafeTag[], blurb, mapsUrl?, priceLevel?, noise?, hours? }`. The source has no prices, hours or map links, so those stay empty rather than invented. Editing the list means a code change and a deploy, which is acceptable for v1.
 - `src/domain.ts`: `MOODS`, `CAFE_TAGS`, `ROOM_STATUS`, plus the `Cafe` / `Mood` / `CafeTag` types. Schemas (select options), the scorer and the AI prompt all import these, so the vocabulary can't drift.
 
 ### `rooms`
@@ -64,7 +64,7 @@ Rows are written only by actions, with a deterministic `recordId` of `${roomId}_
 | `userId` | text / plain, **userBound, immutable** (`ownerField`) |
 | `mood` | text / select `MOODS` |
 | `mustHave` | text / json (string[] from `CAFE_TAGS`) |
-| `budgetMax` | number / plain (1–3, matches `priceLevel`) |
+| `budgetMax` | number / plain (1–3, matches `priceLevel`). **Currently unused:** the picker is hidden and the scorer and AI ignore it (see Next steps) |
 | `note` | text / plain (≤200 characters, enforced in the UI and when read by the action) |
 
 ```ts
@@ -165,7 +165,7 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
 1. `tools.get('rooms', roomId)`. Require `hostId === ctx.userId` and `status === 'collecting'`. This is the **only** entry point, so a room gets exactly one run.
 2. Lock: set `status: 'recommending'`. All clients see "thinking…" through the live `rooms` subscription.
 3. Gather the active `team_members`, their `preferences` (filtered to active members; require ≥2), and `CAFES`.
-4. `src/lib/score.ts` → `rankCafes(prefs, CAFES)` (pure function, unit-tested): drop cafés above the group's median `budgetMax` (relaxing to a penalty if fewer than 3 remain), score the rest by `mustHave` tag overlap and mood fit, and keep the **top 12**.
+4. `src/lib/score.ts` → `rankCafes(prefs, CAFES)` (pure function, unit-tested): score cafés by `mustHave` tag overlap and mood fit, and keep the **top 12**. The budget rule (drop cafés above the group's median `budgetMax`, relaxing to a penalty if fewer than 3 remain; never drop an unknown price) is built and tested but **off** (`considerBudget: false`) until cafés have prices.
 5. Call Claude:
    ```ts
    const anthropic = createDeepSpaceAI(env, 'anthropic')             // owner-billed
@@ -227,6 +227,9 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
 ---
 
 ## Next steps (cut from the 2-day scope)
+- **Bring back the budget picker once cafés have prices.** It's hidden because the corpus has no price data, so a budget would filter nothing. To restore it: add `priceLevel` to cafés from a real source, re-add the "Budget, at most" field to `MyPreferenceCard` and the badge to `MemberCard`, count `budgetMax` in `hasPreference`, and send it in `buildPromptData` (plus "fit the budgets" in the system prompt). The `budgetMax` column was never removed, so no migration is needed.
+- **Re-enable budget in the scorer.** Pass `considerBudget: true` to `rankCafes` in `recommendCafes`. The rule is already built and unit-tested, including "never drop a café with an unknown price".
+- **Hours and map links.** Add `hours` and `mapsUrl` per café only from a verified source. The UI already shows them when present; until then the winner's "Open in Maps" link is a search for name and address.
 - **Curated cafés as a collection.** A `cafes` collection with admin-only writes, a `seedCafes` owner action, and in-app editing.
 - **AI re-runs.** `aiRunCount`, a cooldown, `runId` on recommendations and votes, and a vote reset on re-run.
 - **Richer preferences.** `avoid` tags, `maxTravelMin`, a `ready` toggle with a ready count.

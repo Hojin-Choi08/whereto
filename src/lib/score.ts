@@ -4,15 +4,18 @@
  * fallback top 3 if the AI call fails.
  *
  * Rules:
- * 1. Budget: drop cafés priced above the group's median `budgetMax` (members
+ * 1. Budget (only with `considerBudget`, off for now — no price data):
+ *    drop cafés priced above the group's median `budgetMax` (members
  *    who set one). If that leaves fewer than `minResults`, keep every café and
  *    penalise each price level over the median instead, so the group always
- *    gets enough picks.
+ *    gets enough picks. A café with an UNKNOWN price is never dropped and
+ *    never penalised — missing data is not evidence it's too expensive.
  * 2. Must-haves: +MUST_HAVE_POINTS for every (member, tag) the café has —
  *    a tag three people want counts three times.
  * 3. Mood: per member with a mood, +MOOD_TAG_POINTS per mood-typical tag the
- *    café has, +MOOD_NOISE_POINTS if its noise level suits the mood.
- * 4. Ties: lower price first, then id — fully deterministic.
+ *    café has, +MOOD_NOISE_POINTS if its noise level is known and suits the mood.
+ * 4. Ties: lower known price first (unknown prices after known ones), then
+ *    id — fully deterministic.
  *
  * Input is treated as untrusted (preferences are client-written): unknown
  * moods/tags and out-of-range budgets are ignored, duplicate tags count once.
@@ -38,12 +41,19 @@ export interface RankOptions {
   limit?: number
   /** Relax the budget filter if fewer than this many remain. Default 3. */
   minResults?: number
+  /**
+   * Apply rule 1 (budget). OFF by default: the café corpus has no prices yet,
+   * so budget is ignored (PLAN.md "Next steps" — turn on once prices exist).
+   */
+  considerBudget?: boolean
 }
 
 export const MUST_HAVE_POINTS = 2
 export const MOOD_TAG_POINTS = 1
 export const MOOD_NOISE_POINTS = 1
 export const OVER_BUDGET_PENALTY = 3
+/** Tie-break position for an unknown price: after every known level (1–3). */
+const UNKNOWN_PRICE_SORT = 4
 
 const MOOD_PROFILE: Record<Mood, { tags: readonly CafeTag[]; noise: readonly Cafe['noise'][] }> = {
   focus: { tags: ['wifi', 'outlets', 'quiet'], noise: ['quiet'] },
@@ -51,7 +61,7 @@ const MOOD_PROFILE: Record<Mood, { tags: readonly CafeTag[]; noise: readonly Caf
   date: { tags: ['specialty-coffee', 'pastries'], noise: ['quiet', 'moderate'] },
   cozy: { tags: ['quiet', 'pastries'], noise: ['quiet'] },
   quick: { tags: ['specialty-coffee'], noise: ['moderate', 'lively'] },
-  treat: { tags: ['pastries', 'food', 'specialty-coffee'], noise: ['moderate', 'lively', 'quiet'] },
+  treat: { tags: ['pastries', 'desserts', 'food', 'specialty-coffee'], noise: ['moderate', 'lively', 'quiet'] },
 }
 
 const VALID_MOODS = new Set<string>(MOODS)
@@ -88,12 +98,13 @@ export function groupBudget(prefs: readonly ScoringPreference[]): PriceLevel | u
 export function rankCafes(
   prefs: readonly ScoringPreference[],
   cafes: readonly Cafe[],
-  { limit = 12, minResults = 3 }: RankOptions = {},
+  { limit = 12, minResults = 3, considerBudget = false }: RankOptions = {},
 ): ScoredCafe[] {
   const members = prefs.map((p) => ({ mood: cleanMood(p.mood), mustHave: cleanTags(p.mustHave) }))
-  const budget = groupBudget(prefs)
+  const budget = considerBudget ? groupBudget(prefs) : undefined
 
-  const withinBudget = budget === undefined ? cafes : cafes.filter((c) => c.priceLevel <= budget)
+  const withinBudget =
+    budget === undefined ? cafes : cafes.filter((c) => c.priceLevel === undefined || c.priceLevel <= budget)
   const relaxed = withinBudget.length < Math.min(minResults, cafes.length)
   const candidates = relaxed ? cafes : withinBudget
 
@@ -113,14 +124,14 @@ export function rankCafes(
       if (member.mood) {
         const profile = MOOD_PROFILE[member.mood]
         const tagPoints = profile.tags.filter((t) => tags.has(t)).length * MOOD_TAG_POINTS
-        const noisePoints = profile.noise.includes(cafe.noise) ? MOOD_NOISE_POINTS : 0
+        const noisePoints = cafe.noise && profile.noise.includes(cafe.noise) ? MOOD_NOISE_POINTS : 0
         score += tagPoints + noisePoints
         if (tagPoints + noisePoints > 0) moodHits[member.mood] = (moodHits[member.mood] ?? 0) + 1
       }
     }
 
-    const overBudget = budget !== undefined && cafe.priceLevel > budget
-    if (overBudget) score -= OVER_BUDGET_PENALTY * (cafe.priceLevel - budget)
+    const overBudget = budget !== undefined && cafe.priceLevel !== undefined && cafe.priceLevel > budget
+    if (overBudget) score -= OVER_BUDGET_PENALTY * (cafe.priceLevel! - budget!)
 
     return { cafe, score, mustHaveHits, moodHits, overBudget }
   })
@@ -128,7 +139,7 @@ export function rankCafes(
   scored.sort(
     (a, b) =>
       b.score - a.score ||
-      a.cafe.priceLevel - b.cafe.priceLevel ||
+      (a.cafe.priceLevel ?? UNKNOWN_PRICE_SORT) - (b.cafe.priceLevel ?? UNKNOWN_PRICE_SORT) ||
       (a.cafe.id < b.cafe.id ? -1 : a.cafe.id > b.cafe.id ? 1 : 0),
   )
   return scored.slice(0, Math.max(0, limit))

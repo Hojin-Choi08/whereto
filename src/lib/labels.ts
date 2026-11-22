@@ -20,6 +20,9 @@ export const TAG_LABELS: Record<CafeTag, string> = {
   spacious: 'Roomy',
   'specialty-coffee': 'Great coffee',
   food: 'Real food',
+  tea: 'Tea',
+  matcha: 'Matcha',
+  desserts: 'Desserts',
 }
 
 export const BUDGET_LABELS: Record<PriceLevel, string> = { 1: '$', 2: '$$', 3: '$$$' }

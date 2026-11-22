@@ -99,9 +99,11 @@ function PickCard({
             <span className="truncate">{cafe.neighborhood} · {cafe.address}</span>
           </p>
         </div>
-        <span className="shrink-0 text-sm font-medium text-foreground" aria-label={`Price level ${cafe.priceLevel} of 3`}>
-          {BUDGET_LABELS[cafe.priceLevel]}
-        </span>
+        {cafe.priceLevel && (
+          <span className="shrink-0 text-sm font-medium text-foreground" aria-label={`Price level ${cafe.priceLevel} of 3`}>
+            {BUDGET_LABELS[cafe.priceLevel]}
+          </span>
+        )}
       </div>
 
       {pick.reason && <p className="mt-3 flex-1 text-sm text-foreground">{pick.reason}</p>}
@@ -111,7 +113,7 @@ function PickCard({
           <Badge key={t} variant="outline">{TAG_LABELS[t]}</Badge>
         ))}
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">{cafe.hours}</p>
+      {cafe.hours && <p className="mt-2 text-xs text-muted-foreground">{cafe.hours}</p>}
 
       {voters && <Voters voters={voters} myUserId={myUserId} />}
 

@@ -32,7 +32,7 @@ describe('groupBudget', () => {
   })
 })
 
-describe('rankCafes — budget filter', () => {
+describe('rankCafes — budget filter (considerBudget: true)', () => {
   const cafes = [
     cafe('cheap-a', { priceLevel: 1 }),
     cafe('cheap-b', { priceLevel: 1 }),
@@ -42,20 +42,26 @@ describe('rankCafes — budget filter', () => {
 
   it('drops cafés above the group median budget', () => {
     const prefs: ScoringPreference[] = [{ budgetMax: 2 }, { budgetMax: 2 }, { budgetMax: 3 }]
-    expect(ids(rankCafes(prefs, cafes))).not.toContain('pricey')
-    expect(rankCafes(prefs, cafes)).toHaveLength(3)
+    expect(ids(rankCafes(prefs, cafes, { considerBudget: true }))).not.toContain('pricey')
+    expect(rankCafes(prefs, cafes, { considerBudget: true })).toHaveLength(3)
   })
 
   it('relaxes to a penalty when too few cafés fit, keeping in-budget ones first', () => {
     const prefs: ScoringPreference[] = [{ budgetMax: 1 }, { budgetMax: 1 }]
-    const ranked = rankCafes(prefs, [cafe('cheap', { priceLevel: 1 }), ...cafes.slice(2)])
+    const ranked = rankCafes(prefs, [cafe('cheap', { priceLevel: 1 }), ...cafes.slice(2)], { considerBudget: true })
     expect(ids(ranked)).toEqual(['cheap', 'mid', 'pricey'])
     expect(ranked.map((r) => r.overBudget)).toEqual([false, true, true])
     expect(ranked[1].score).toBeLessThan(ranked[0].score)
   })
 
+  it('ignores budgets by default (no price data yet): nothing dropped, no penalty', () => {
+    const ranked = rankCafes([{ budgetMax: 1 }, { budgetMax: 1 }], cafes)
+    expect(ranked).toHaveLength(4)
+    expect(ranked.every((r) => !r.overBudget)).toBe(true)
+  })
+
   it('ignores the budget entirely when nobody set one', () => {
-    expect(rankCafes([{ mood: 'chat' }], cafes)).toHaveLength(4)
+    expect(rankCafes([{ mood: 'chat' }], cafes, { considerBudget: true })).toHaveLength(4)
   })
 })
 
@@ -110,7 +116,7 @@ describe('rankCafes — determinism and edge cases', () => {
     const junk = [
       { mood: 'party', mustHave: ['wifi', 'wifi', 'helipad', 42], budgetMax: 7 },
     ] as unknown as ScoringPreference[]
-    const ranked = rankCafes(junk, cafes)
+    const ranked = rankCafes(junk, cafes, { considerBudget: true })
     expect(ids(ranked)).toEqual(['x', 'y']) // budget 7 ignored → nothing filtered
     expect(ranked[0].mustHaveHits).toEqual({ wifi: 1 }) // duplicate counted once
   })
@@ -120,6 +126,41 @@ describe('rankCafes — determinism and edge cases', () => {
     expect(ranked.length).toBeGreaterThanOrEqual(3)
     expect(ranked.length).toBeLessThanOrEqual(12)
     expect(new Set(ids(ranked)).size).toBe(ranked.length)
-    expect(ranked.every((r) => r.cafe.priceLevel <= 2)).toBe(true)
+    // Real data has no prices: unknown is never filtered out, known must fit.
+    expect(ranked.every((r) => r.cafe.priceLevel === undefined || r.cafe.priceLevel <= 2)).toBe(true)
+  })
+})
+
+describe('rankCafes — unknown price and noise (real corpus has neither)', () => {
+  it('never drops or penalises a café with an unknown price', () => {
+    const cafes = [
+      cafe('unknown', { priceLevel: undefined }),
+      cafe('cheap', { priceLevel: 1 }),
+      cafe('pricey', { priceLevel: 3 }),
+      cafe('cheap-2', { priceLevel: 1 }),
+    ]
+    const ranked = rankCafes([{ budgetMax: 1 }, { budgetMax: 1 }], cafes, { considerBudget: true })
+    expect(ids(ranked)).toEqual(['cheap', 'cheap-2', 'unknown']) // pricey dropped; unknown kept
+    expect(ranked.find((r) => r.cafe.id === 'unknown')).toMatchObject({ score: 0, overBudget: false })
+  })
+
+  it('keeps unknown-price cafés when relaxing the budget, without a penalty', () => {
+    const ranked = rankCafes([{ budgetMax: 1 }], [cafe('unknown', { priceLevel: undefined }), cafe('pricey', { priceLevel: 3 })], { considerBudget: true })
+    expect(ids(ranked)).toEqual(['unknown', 'pricey'])
+    expect(ranked.map((r) => r.overBudget)).toEqual([false, true])
+  })
+
+  it('sorts unknown prices after known ones only on a tie', () => {
+    const cafes = [cafe('a-unknown', { priceLevel: undefined }), cafe('z-known', { priceLevel: 3 })]
+    expect(ids(rankCafes([], cafes))).toEqual(['z-known', 'a-unknown'])
+    const better = [cafe('a-unknown', { priceLevel: undefined, tags: ['wifi'] }), cafe('z-known', { priceLevel: 1 })]
+    expect(ids(rankCafes([{ mustHave: ['wifi'] }], better))).toEqual(['a-unknown', 'z-known'])
+  })
+
+  it('gives no noise points when noise is unknown', () => {
+    const cafes = [cafe('unknown-noise', { noise: undefined }), cafe('quiet', { noise: 'quiet' })]
+    const ranked = rankCafes([{ mood: 'focus' }], cafes)
+    expect(ids(ranked)).toEqual(['quiet', 'unknown-noise'])
+    expect(ranked[1]).toMatchObject({ score: 0, moodHits: {} })
   })
 })

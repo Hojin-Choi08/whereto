@@ -19,11 +19,18 @@ export function fallbackReason({ cafe, mustHaveHits, moodHits, overBudget }: Sco
     .map(([mood]) => MOOD_LABELS[mood].label.toLowerCase())
   if (moods.length) parts.push(`suits a ${joinList(moods)} mood`)
 
-  const lead = parts.length ? `${capitalize(parts.join(' and '))}.` : `A solid all-rounder in ${cafe.neighborhood}.`
-  const price = overBudget
-    ? ` It's a little above the group's budget (${BUDGET_LABELS[cafe.priceLevel]}).`
-    : ` ${BUDGET_LABELS[cafe.priceLevel]}, ${cafe.neighborhood}.`
-  return lead + price
+  // Price is mentioned only when the source knows it — never guessed.
+  const price = cafe.priceLevel ? BUDGET_LABELS[cafe.priceLevel] : undefined
+  if (!parts.length) {
+    return `A solid all-rounder in ${cafe.neighborhood}.${price && !overBudget ? ` ${price}.` : ''}${overBudgetNote(price, overBudget)}`
+  }
+  const lead = `${capitalize(parts.join(' and '))}.`
+  if (overBudget) return `${lead} ${cafe.neighborhood}.${overBudgetNote(price, overBudget)}`
+  return `${lead} ${price ? `${price}, ` : ''}${cafe.neighborhood}.`
+}
+
+function overBudgetNote(price: string | undefined, overBudget: boolean): string {
+  return overBudget && price ? ` It's a little above the group's budget (${price}).` : ''
 }
 
 function joinList(items: string[]): string {

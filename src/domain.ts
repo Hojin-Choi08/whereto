@@ -17,6 +17,9 @@ export const CAFE_TAGS = [
   'spacious',
   'specialty-coffee',
   'food',
+  'tea',
+  'matcha',
+  'desserts',
 ] as const
 export type CafeTag = (typeof CAFE_TAGS)[number]
 
@@ -43,11 +46,14 @@ export interface Cafe {
   neighborhood: string
   address: string
   mapsUrl?: string
-  priceLevel: PriceLevel
+  /** Unknown when the source doesn't say. The scorer never drops a café for an unknown price. */
+  priceLevel?: PriceLevel
   tags: readonly CafeTag[]
-  noise: 'quiet' | 'moderate' | 'lively'
-  hours: string
-  /** One or two sentences — this is what Claude reads. */
+  /** Only when the source says so ("calm" → quiet, "busy" → lively). */
+  noise?: 'quiet' | 'moderate' | 'lively'
+  /** Not stored by the source corpus; hidden in the UI when missing. */
+  hours?: string
+  /** One or two sentences, written only from the source's drinks + vibe. This is what Claude reads. */
   blurb: string
 }
 
@@ -104,8 +110,11 @@ export interface RecommendationData {
  * Whether a member has actually said something. One definition, used by the
  * room UI's counts and by `recommendCafes`' "at least 2" gate, so the button
  * and the server can't disagree.
+ *
+ * `budgetMax` doesn't count: the café corpus has no prices, so the budget
+ * picker is hidden and budget is ignored everywhere (PLAN.md "Next steps").
  */
 export function hasPreference(p: Partial<PreferenceData> | undefined): boolean {
   if (!p) return false
-  return Boolean(p.mood || p.budgetMax || (Array.isArray(p.mustHave) && p.mustHave.length > 0) || p.note?.trim())
+  return Boolean(p.mood || (Array.isArray(p.mustHave) && p.mustHave.length > 0) || p.note?.trim())
 }

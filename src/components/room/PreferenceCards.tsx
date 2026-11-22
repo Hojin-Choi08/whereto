@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutations, useUserLookup } from 'deepspace'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Textarea, cn, useToast } from '@/components/ui'
-import { CAFE_TAGS, LIMITS, MOODS, hasPreference, type CafeTag, type Mood, type PreferenceData, type PriceLevel } from '@/domain'
-import { BUDGET_LABELS, MOOD_LABELS, TAG_LABELS } from '@/lib/labels'
+import { CAFE_TAGS, LIMITS, MOODS, hasPreference, type CafeTag, type Mood, type PreferenceData } from '@/domain'
+import { MOOD_LABELS, TAG_LABELS } from '@/lib/labels'
 
 type PrefRecord = { recordId: string; data: PreferenceData }
 
 // ---------------------------------------------------------------------------
 // Draft <-> record helpers
+//
+// No budget here: the café corpus has no prices, so the budget picker is
+// hidden (PLAN.md "Next steps"). The `budgetMax` column is untouched, so
+// bringing it back needs no migration.
 // ---------------------------------------------------------------------------
 
 interface Draft {
   mood?: Mood
   mustHave: CafeTag[]
-  budgetMax?: PriceLevel
   note: string
 }
 
@@ -21,17 +24,15 @@ function draftFrom(record: PrefRecord | undefined): Draft {
   return {
     mood: record?.data.mood,
     mustHave: record?.data.mustHave ?? [],
-    budgetMax: record?.data.budgetMax,
     note: record?.data.note ?? '',
   }
 }
 
 /** The exact fields we write — normalised, so comparing against the server can't loop. */
-function toPatch(d: Draft): Omit<PreferenceData, 'roomId' | 'userId'> {
+function toPatch(d: Draft): Omit<PreferenceData, 'roomId' | 'userId' | 'budgetMax'> {
   return {
     mood: d.mood,
     mustHave: [...d.mustHave].sort(),
-    budgetMax: d.budgetMax,
     note: d.note.trim().slice(0, LIMITS.noteMax),
   }
 }
@@ -40,14 +41,13 @@ function matchesServer(d: Draft, server: PreferenceData): boolean {
   const p = toPatch(d)
   return (
     p.mood === server.mood &&
-    p.budgetMax === server.budgetMax &&
     p.note === (server.note ?? '') &&
     (p.mustHave ?? []).join(',') === [...(server.mustHave ?? [])].sort().join(',')
   )
 }
 
 function isEmpty(d: Draft): boolean {
-  return !d.mood && d.mustHave.length === 0 && !d.budgetMax && !d.note.trim()
+  return !d.mood && d.mustHave.length === 0 && !d.note.trim()
 }
 
 // ---------------------------------------------------------------------------
@@ -138,17 +138,6 @@ export function MyPreferenceCard({
         </div>
       </Field>
 
-      <Field label="Budget, at most">
-        <div className="flex gap-2">
-          {([1, 2, 3] as const).map((b) => (
-            <Chip key={b} selected={draft.budgetMax === b} disabled={!ready} className="min-w-14"
-              onClick={() => update({ budgetMax: draft.budgetMax === b ? undefined : b })}>
-              {BUDGET_LABELS[b]}
-            </Chip>
-          ))}
-        </div>
-      </Field>
-
       <Field label="Anything else?" htmlFor="pref-note">
         <Textarea id="pref-note" rows={2} maxLength={LIMITS.noteMax} disabled={!ready}
           placeholder="e.g. I can only do 30 minutes, near the station please"
@@ -225,9 +214,8 @@ export function MemberCard({ userId, isHost, isYou, pref }: {
 
       {filledIn && pref ? (
         <div className="mt-3 space-y-2">
-          {((pref.mustHave?.length ?? 0) > 0 || !!pref.budgetMax) && (
+          {(pref.mustHave?.length ?? 0) > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {pref.budgetMax && <Badge variant="outline">≤ {BUDGET_LABELS[pref.budgetMax]}</Badge>}
               {pref.mustHave?.map((t) => <Badge key={t} variant="outline">{TAG_LABELS[t] ?? t}</Badge>)}
             </div>
           )}
