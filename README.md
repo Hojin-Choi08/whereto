@@ -64,6 +64,7 @@ The live tallies and `closeVoting` share one counting rule ([`src/lib/tally.ts`]
 ### Realtime and auth: DeepSpace primitives, nothing custom
 - **Live data:** `useQuery` / `useMutations` subscriptions over the RecordRoom WebSocket.
 - **Sign-in and gated pages:** `DeepSpaceAuthProvider` + `<AuthGate>` for Google/GitHub sign-in and the protected pages.
+- **Presence:** `usePresenceRoom('room:<id>')` (in memory, nothing persisted) shows who's in the room now (dots on member cards) and who's editing their card. The worker only lets active room members open a room's presence socket: it verifies the JWT, then looks up that user's `team_members` row (`src/server/room-presence.ts`). Non-members get 403.
 - **Returning to the room after OAuth:** a short-lived (10 min), HttpOnly, SameSite=Lax cookie set in `/api/auth/social-redirect` and consumed in `/api/auth/oauth-complete`. Only `/j/<code>` and `/r/<id>` paths are accepted. Code: [`src/server/return-to-cookie.ts`](src/server/return-to-cookie.ts).
 
 ### Café data
@@ -126,7 +127,7 @@ Full list with implementation notes: [PLAN.md → Next steps](PLAN.md#next-steps
 - Host handoff, or letting any member close a vote once everyone has voted.
 - Move preference and vote writes behind actions, which closes both of the first two limitations above.
 - Playwright end-to-end tests for the three-user flow and host-only refusals.
-- AI re-runs, presence indicators, leave and remove-member actions, and curated cafés as an editable collection.
+- AI re-runs, leave and remove-member actions, and curated cafés as an editable collection.
 
 ## Repo map
 

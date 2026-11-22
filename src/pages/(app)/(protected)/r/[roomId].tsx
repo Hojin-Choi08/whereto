@@ -11,6 +11,7 @@ import { useAuth } from 'deepspace'
 import { Badge, Button, buttonVariants, useToast } from '@/components/ui'
 import { PickCards } from '@/components/room/PickCards'
 import { MemberCard, MyPreferenceCard } from '@/components/room/PreferenceCards'
+import { RoomPresenceProvider } from '@/components/room/RoomPresence'
 import { ShareLink } from '@/components/room/ShareLink'
 import { VotingPanel, WinnerCard } from '@/components/room/Voting'
 import { Spinner } from '@/components/Spinner'
@@ -83,6 +84,8 @@ export default function RoomPage() {
   )
 
   return (
+    // Members only reach here (non-members get "Room not found"), so only they open presence.
+    <RoomPresenceProvider roomId={roomId}>
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 text-foreground sm:py-10">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -143,6 +146,7 @@ export default function RoomPage() {
         </>
       )}
     </div>
+    </RoomPresenceProvider>
   )
 }
 

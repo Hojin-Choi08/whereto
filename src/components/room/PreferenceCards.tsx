@@ -3,6 +3,7 @@ import { useMutations, useUserLookup } from 'deepspace'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Textarea, cn, useToast } from '@/components/ui'
 import { CAFE_TAGS, LIMITS, MOODS, hasPreference, type CafeTag, type Mood, type PreferenceData } from '@/domain'
 import { MOOD_LABELS, TAG_LABELS } from '@/lib/labels'
+import { useRoomPresence } from './RoomPresence'
 
 type PrefRecord = { recordId: string; data: PreferenceData }
 
@@ -65,6 +66,7 @@ export function MyPreferenceCard({
 }) {
   const { ready, put, createConfirmed } = useMutations<PreferenceData>('preferences')
   const { error } = useToast()
+  const { markEditing } = useRoomPresence()
   const [draft, setDraft] = useState<Draft | null>(null)
   const creating = useRef(false)
 
@@ -103,7 +105,10 @@ export function MyPreferenceCard({
   }
 
   const saving = mine ? !matchesServer(draft, mine.data) : !isEmpty(draft)
-  const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d))
+  const update = (patch: Partial<Draft>) => {
+    markEditing() // shows "editing…" on your card for everyone else
+    setDraft((d) => (d ? { ...d, ...patch } : d))
+  }
   const toggleTag = (tag: CafeTag) =>
     update({ mustHave: draft.mustHave.includes(tag) ? draft.mustHave.filter((t) => t !== tag) : [...draft.mustHave, tag] })
 
@@ -188,22 +193,47 @@ export function MemberCard({ userId, isHost, isYou, pref }: {
   pref: PreferenceData | undefined
 }) {
   const { getUser } = useUserLookup()
+  const presence = useRoomPresence()
   const user = getUser(userId)
   const name = user?.name || 'Someone'
   const filledIn = hasPreference(pref)
+  // You're "here" whenever your own presence socket is up; others come from peers.
+  const isOnline = isYou ? presence.connected : presence.online.has(userId)
+  const isEditing = !isYou && presence.editing.has(userId)
 
   return (
     <li className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-3">
-        <Avatar className="size-9">
-          {user?.imageUrl && <AvatarImage src={user.imageUrl} alt="" />}
-          <AvatarFallback>{name.slice(0, 1).toUpperCase()}</AvatarFallback>
-        </Avatar>
+        <span className="relative shrink-0">
+          <Avatar className="size-9">
+            {user?.imageUrl && <AvatarImage src={user.imageUrl} alt="" />}
+            <AvatarFallback>{name.slice(0, 1).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          {/* No dot until presence is connected — unknown is not "offline". */}
+          {presence.connected && (
+            <span
+              data-testid={`presence-dot-${userId}`}
+              data-online={isOnline}
+              title={isOnline ? 'In the room now' : 'Not in the room right now'}
+              className={cn(
+                'absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-card',
+                isOnline ? 'bg-success' : 'bg-muted-foreground/40',
+              )}
+            >
+              <span className="sr-only">{isOnline ? 'online' : 'offline'}</span>
+            </span>
+          )}
+        </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
             {name}{isYou && <span className="text-muted-foreground"> (you)</span>}
           </p>
-          {isHost && <Badge variant="secondary" size="sm">Host</Badge>}
+          <div className="flex items-center gap-2">
+            {isHost && <Badge variant="secondary" size="sm">Host</Badge>}
+            {isEditing && (
+              <span className="animate-pulse text-xs text-muted-foreground" aria-live="polite">editing…</span>
+            )}
+          </div>
         </div>
         {pref?.mood && (
           <span className="text-sm text-foreground" title={MOOD_LABELS[pref.mood].label}>

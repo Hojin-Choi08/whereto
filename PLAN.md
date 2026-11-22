@@ -233,7 +233,7 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
 - **Curated cafés as a collection.** A `cafes` collection with admin-only writes, a `seedCafes` owner action, and in-app editing.
 - **AI re-runs.** `aiRunCount`, a cooldown, `runId` on recommendations and votes, and a vote reset on re-run.
 - **Richer preferences.** `avoid` tags, `maxTravelMin`, a `ready` toggle with a ready count.
-- **Presence.** `usePresenceRoom(\`room:${roomId}\`)` for online dots and "editing…" hints, gated by membership in `realtime-routes.ts`.
+- ~~**Presence.**~~ **Done:** `usePresenceRoom(\`room:${roomId}\`)` drives online dots and "editing…" hints. `/ws/presence/room:<id>` admits only active members (`src/server/room-presence.ts`).
 - **`removeMember` / `leaveRoom` actions.** (The `team_members.status: 'removed'` value is already in the schema.)
 - **Per-person fit chips** on recommendations.
 - **Playwright tests.** A `collab.spec.ts` covering three users through the full flow plus the non-member check, and an `api.spec.ts` covering action auth and host-only refusals.

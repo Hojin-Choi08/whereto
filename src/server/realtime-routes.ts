@@ -11,6 +11,7 @@ import type { Context, Hono } from 'hono'
 import { authenticatedRoomRequest, resolveAppRole, verifyJwt } from 'deepspace/worker'
 import type { JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
 import type { AppContext, Env } from '../../worker.js'
+import { isActiveRoomMember, roomIdFromPresenceScope } from './room-presence.js'
 
 function jwtConfig(env: Env): JwtVerifierConfig {
   return { publicKey: env.AUTH_JWT_PUBLIC_KEY, issuer: env.AUTH_JWT_ISSUER }
@@ -150,10 +151,24 @@ export function registerRealtimeRoutes(app: Hono<AppContext>): void {
     ),
   )
 
-  app.get(
-    '/ws/presence/:scopeId',
-    wsRoute((env) => env.PRESENCE_ROOMS),
-  )
+  // Room presence is members-only (src/server/room-presence.ts); any other
+  // scope keeps the scaffold's behaviour.
+  const presenceRoute = wsRoute((env) => env.PRESENCE_ROOMS)
+  app.get('/ws/presence/:scopeId', async (c) => {
+    const scopeId = c.req.param('scopeId')
+    const roomId = roomIdFromPresenceScope(scopeId)
+    if (!roomId) return presenceRoute(c)
+
+    const token = new URL(c.req.url).searchParams.get('token')
+    const auth = token ? (await verifyJwt(jwtConfig(c.env), token)).result : null
+    if (!auth) return new Response('Unauthorized', { status: 401 })
+    if (!(await isActiveRoomMember(c.env, roomId, auth.userId))) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    const stub = c.env.PRESENCE_ROOMS.get(c.env.PRESENCE_ROOMS.idFromName(scopeId))
+    return stub.fetch(authenticatedRoomRequest(c.req.raw, auth))
+  })
 
   app.get(
     '/ws/cron/:roomId',
