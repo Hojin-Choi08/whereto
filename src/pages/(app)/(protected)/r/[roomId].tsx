@@ -4,7 +4,7 @@
  * collecting → recommending (everyone sees "thinking") → voting (3 picks).
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from 'deepspace'
@@ -12,9 +12,11 @@ import { Badge, Button, buttonVariants, useToast } from '@/components/ui'
 import { PickCards } from '@/components/room/PickCards'
 import { MemberCard, MyPreferenceCard } from '@/components/room/PreferenceCards'
 import { ShareLink } from '@/components/room/ShareLink'
+import { VotingPanel, WinnerCard } from '@/components/room/Voting'
 import { Spinner } from '@/components/Spinner'
 import { MIN_PREFS_TO_RECOMMEND, hasPreference, type RoomStatus } from '@/domain'
 import { callAction } from '@/lib/actions'
+import { tallyVotes } from '@/lib/tally'
 import { useRoom } from '@/lib/useRoom'
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
@@ -27,7 +29,16 @@ const STATUS_LABEL: Record<RoomStatus, string> = {
 export default function RoomPage() {
   const { roomId = '' } = useParams()
   const { userId } = useAuth()
-  const { status, room, members, preferences, preferencesReady, recommendations } = useRoom(roomId)
+  const { status, room, members, preferences, preferencesReady, recommendations, votes } = useRoom(roomId)
+  const tally = useMemo(
+    () =>
+      tallyVotes(
+        recommendations.map((r) => ({ cafeId: r.data.cafeId, rank: r.data.rank })),
+        votes.map((v) => ({ userId: v.data.userId, cafeId: v.data.cafeId })),
+        members.map((m) => m.data.userId),
+      ),
+    [recommendations, votes, members],
+  )
 
   if (status === 'loading') {
     return (
@@ -108,15 +119,26 @@ export default function RoomPage() {
         </>
       )}
 
-      {(phase === 'voting' || phase === 'decided') && (
+      {(phase === 'voting' || phase === 'decided') && recommendations.length === 0 && (
+        <div className="flex min-h-32 items-center justify-center rounded-lg border border-border bg-card p-6">
+          <Spinner label="Loading picks…" />
+        </div>
+      )}
+
+      {phase === 'voting' && recommendations.length > 0 && (
         <>
-          {recommendations.length > 0 ? (
-            <PickCards picks={recommendations} />
-          ) : (
-            <div className="flex min-h-32 items-center justify-center rounded-lg border border-border bg-card p-6">
-              <Spinner label="Loading picks…" />
-            </div>
-          )}
+          <VotingPanel roomId={roomId} picks={recommendations} votes={votes} tally={tally}
+            myUserId={userId} isHost={isHost} />
+          {everyone}
+        </>
+      )}
+
+      {phase === 'decided' && recommendations.length > 0 && (
+        <>
+          {/* rooms.winnerCafeId is the server's decision; the tally is shown for context. */}
+          {room.data.winnerCafeId && <WinnerCard winnerCafeId={room.data.winnerCafeId} tally={tally} />}
+          <PickCards picks={recommendations} tally={tally} myUserId={userId}
+            winnerCafeId={room.data.winnerCafeId} heading="How everyone voted" />
           {everyone}
         </>
       )}

@@ -86,6 +86,12 @@ export interface PreferenceData {
   note?: string
 }
 
+export interface VoteData {
+  roomId: string
+  userId: string
+  cafeId: string
+}
+
 export interface RecommendationData {
   roomId: string
   rank: number

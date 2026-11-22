@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from 'deepspace'
-import type { PreferenceData, RecommendationData, RoomData, TeamMemberData } from '@/domain'
+import type { PreferenceData, RecommendationData, RoomData, TeamMemberData, VoteData } from '@/domain'
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 
@@ -14,9 +14,10 @@ export function useRoom(roomId: string) {
   const members = useQuery<TeamMemberData>('team_members', { where: { teamId: roomId } })
   const prefs = useQuery<PreferenceData>('preferences', { where: { roomId } })
   const recs = useQuery<RecommendationData>('recommendations', { where: { roomId } })
+  const votes = useQuery<VoteData>('votes', { where: { roomId } })
 
   return useMemo(() => {
-    const statuses = [rooms.status, members.status, prefs.status, recs.status]
+    const statuses = [rooms.status, members.status, prefs.status, recs.status, votes.status]
     const status: LoadStatus = statuses.includes('error')
       ? 'error'
       : statuses.every((s) => s === 'ready')
@@ -35,6 +36,10 @@ export function useRoom(roomId: string) {
       preferences: prefs.records.filter((p) => activeIds.has(p.data.userId)),
       preferencesReady: prefs.status === 'ready',
       recommendations: [...recs.records].sort((a, b) => a.data.rank - b.data.rank),
+      votes: votes.records,
     }
-  }, [rooms.status, rooms.records, members.status, members.records, prefs.status, prefs.records, recs.status, recs.records])
+  }, [
+    rooms.status, rooms.records, members.status, members.records, prefs.status, prefs.records,
+    recs.status, recs.records, votes.status, votes.records,
+  ])
 }
