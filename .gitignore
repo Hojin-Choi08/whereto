@@ -16,3 +16,4 @@ src/modals.tsx
 .env*
 .dev.vars
 .wrangler
+.claude/settings.local.json
