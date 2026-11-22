@@ -18,6 +18,11 @@
 
 export const THEMES = [
   {
+    id: 'hojicha',
+    label: 'Hojicha',
+    description: 'Warm paper, soft sage, and a little roasted-tea warmth.',
+  },
+  {
     id: 'slate',
     label: 'Slate',
     description: 'Neutral dark placeholder default. Replace with your own theme.',

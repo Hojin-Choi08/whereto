@@ -102,7 +102,7 @@ permissions: {
 ```ts
 ownerField: 'userId', teamField: 'roomId', uniqueOn: ['roomId', 'userId'],
 permissions: {
-  member: { read: 'team', create: true, update: 'own', delete: 'own', writableFields: ['roomId', 'cafeId'] },
+  member: { read: 'team', create: false, update: false, delete: false },
   admin:  { read: true,   create: true, update: true,  delete: true },
 }
 ```
@@ -129,7 +129,7 @@ permissions: {
 | Edit own preferences | ✅ | ✅ | ❌* | ❌ | `update: 'own'` + userBound + `uniqueOn` |
 | Rename the room or change its area | ✅ | ❌ | ❌ | ❌ | `update: 'own'` + `writableFields` |
 | Trigger the AI (once per room) | ✅ | ❌ | ❌ | ❌ | `recommendCafes`: host check + `status === 'collecting'` |
-| Vote and change their vote | ✅ | ✅ | ❌* | ❌ | `votes` RBAC + `uniqueOn` |
+| Vote and change their vote | ✅ | ✅ | ❌ | ❌ | `castVote`: active membership + voting status + picked café checks |
 | Close voting | ✅ | ❌ | ❌ | ❌ | `closeVoting`: host check |
 
 \* **Known gap.** `create` is boolean-only, so it can't check membership. A signed-in user who knew a room's id could create a stray `preferences` or `votes` row for it, though they still couldn't read anything in the room. To close the gap: (1) room ids never appear in a URL before you've joined (the share link uses `joinCode`); (2) `recommendCafes` and `closeVoting` **count only rows whose `userId` has an active `team_members` row**; (3) the UI renders only rows from active members.
@@ -238,10 +238,10 @@ Not built: custom sockets or polling, our own auth or role tables, a client-side
 - **Per-person fit chips** on recommendations.
 - **Playwright tests.** A `collab.spec.ts` covering three users through the full flow plus the non-member check, and an `api.spec.ts` covering action auth and host-only refusals.
 - **Host handoff,** or letting any member close the vote once everyone has voted.
-- **Moving preference and vote writes behind actions,** to close the create-membership gap fully.
+- **Moving preference writes behind actions,** to close the create-membership gap fully for preferences.
 
 ## Risks and notes
 - **SDK bug (deepspace 0.44.2).** `notifyTeamMembershipChange` reads `record.data.UserId` (capital U), so it never fires a resubscribe when a `team_members` row changes. Impact: a socket that was already subscribed *before* joining won't see the room until it subscribes again. Our flow avoids this, because `joinRoom` then navigates to `/r/:roomId`, which mounts fresh subscriptions. Worth reporting upstream.
 - **Friends need a Google or GitHub account.** Public email signup is closed platform-wide.
 - **The host is a single point of control.** If the host leaves, the room stalls (see Next steps).
-- **Votes can still be edited after voting closes (accepted limitation).** `votes` allows `update: 'own'` with no status check, because RBAC can't see the room's status. A tab left open from before the close could still change its own vote. `rooms.winnerCafeId` is fixed at close and never recomputed, so the winner can't change. Only the "How everyone voted" counts on the decided screen could drift. Fix if needed: move vote writes behind an action that checks `status === 'voting'` (see Next steps).
+- **Vote validity is enforced by `castVote`.** Direct member writes to `votes` are disabled; the action checks active membership, `status === 'voting'`, and that the café is one of the room's picks.

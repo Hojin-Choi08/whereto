@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ExternalLink, MapPin, PartyPopper } from 'lucide-react'
-import { useMutations } from 'deepspace'
 import { Button, ConfirmModal, buttonVariants, useToast } from '@/components/ui'
 import { CAFES_BY_ID } from '@/data/cafes'
 import type { RecommendationData, VoteData } from '@/domain'
@@ -25,23 +24,19 @@ export function VotingPanel({ roomId, picks, votes, tally, myUserId, isHost }: {
   myUserId: string | null
   isHost: boolean
 }) {
-  const { ready, createConfirmed, putConfirmed } = useMutations<VoteData>('votes')
   const { error } = useToast()
   const [pending, setPending] = useState<string | null>(null)
   const myVoteRow = votes.find((v) => v.data.userId === myUserId)
 
   async function vote(cafeId: string) {
-    if (!ready || pending || myVoteRow?.data.cafeId === cafeId) return
+    if (pending || myVoteRow?.data.cafeId === cafeId) return
     setPending(cafeId)
     try {
-      if (myVoteRow) await putConfirmed(myVoteRow.recordId, { cafeId })
-      // userId is userBound — the server stamps it.
-      else await createConfirmed({ roomId, cafeId } as VoteData)
+      const res = await callAction<{ cafeId: string }>('castVote', { roomId, cafeId })
+      if (!res.success) error('Couldn’t save your vote', res.error)
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
-      // A double tap can race two creates; uniqueOn refuses the second and
-      // the first one's echo already shows the vote. Anything else is real.
-      if (!msg.includes('Duplicate')) error('Couldn’t save your vote', msg || undefined)
+      error('Couldn’t save your vote', msg || undefined)
     } finally {
       setPending(null)
     }

@@ -86,8 +86,9 @@ export default function RoomPage() {
   return (
     // Members only reach here (non-members get "Room not found"), so only they open presence.
     <RoomPresenceProvider roomId={roomId}>
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 text-foreground sm:py-10">
+    <div className="room-sheet mx-auto max-w-4xl space-y-6 px-4 py-6 text-foreground sm:my-8 sm:px-8 sm:py-9">
       <header className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">A little café date</p>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{room.data.name}</h1>
           <Badge variant={phase === 'decided' ? 'success' : 'secondary'}>{STATUS_LABEL[phase] ?? phase}</Badge>

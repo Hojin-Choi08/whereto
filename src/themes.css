@@ -44,3 +44,32 @@
   --color-shell: #fafafa;
   --color-shell-panel: #ffffff;
 }
+
+/* Hojicha — warm stationery and soft tea-shop greens. */
+[data-theme="hojicha"] {
+  color-scheme: light;
+  --color-background: #f6f7ee;
+  --color-foreground: #20291f;
+  --color-card: #fbfcf5;
+  --color-card-foreground: #20291f;
+  --color-popover: #fbfcf5;
+  --color-popover-foreground: #20291f;
+  --color-primary: #98502b;
+  --color-primary-foreground: #fffaf0;
+  --color-secondary: #e8eddb;
+  --color-secondary-foreground: #35412f;
+  --color-muted: #ecefdf;
+  --color-muted-foreground: #68735e;
+  --color-accent: #f1dfd0;
+  --color-accent-foreground: #753c20;
+  --color-destructive: #a7443d;
+  --color-destructive-foreground: #fffaf0;
+  --color-border: #d8dfc8;
+  --color-input: #cbd4b9;
+  --color-ring: #9a542f;
+  --radius: 1rem;
+  --shadow-card: 0 2px 5px 0 rgba(47, 55, 37, 0.07);
+  --shadow-card-hover: 0 5px 14px 0 rgba(47, 55, 37, 0.11);
+  --color-shell: #f0f2e5;
+  --color-shell-panel: #fbfcf5;
+}

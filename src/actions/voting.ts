@@ -12,6 +12,38 @@ import type { Env } from '../../worker'
 import type { RecommendationData, RoomData, TeamMemberData, VoteData } from '../domain'
 import { tallyVotes } from '../lib/tally'
 
+/** A member may cast or change their vote only while the room is voting. */
+export const castVote: ActionHandler<Env> = async ({ userId, params, tools }) => {
+  const roomId = typeof params.roomId === 'string' ? params.roomId : ''
+  const cafeId = typeof params.cafeId === 'string' ? params.cafeId : ''
+  if (!roomId || !cafeId) return { success: false, error: 'Missing room or café.' }
+
+  const roomRes = await tools.get<RoomData & Record<string, unknown>>('rooms', roomId)
+  if (!roomRes.success) return { success: false, error: 'Room not found.' }
+  if (roomRes.data.record.data.status !== 'voting') {
+    return { success: false, error: 'Voting is closed.' }
+  }
+
+  const memberId = `${roomId}_${userId}`
+  const memberRes = await tools.get<TeamMemberData & Record<string, unknown>>('team_members', memberId)
+  if (!memberRes.success || memberRes.data.record.data.status !== 'active') {
+    return { success: false, error: 'You are not an active member of this room.' }
+  }
+
+  const picksRes = await tools.query<RecommendationData & Record<string, unknown>>(
+    'recommendations', { where: { roomId }, limit: 10 },
+  )
+  if (!picksRes.success) return { success: false, error: picksRes.error }
+  if (!picksRes.data.records.some((pick) => pick.data.cafeId === cafeId)) {
+    return { success: false, error: 'That café is not one of this room’s picks.' }
+  }
+
+  const voteId = `${roomId}_${userId}`
+  const result = await tools.create('votes', { roomId, userId, cafeId }, voteId)
+  if (!result.success) return { success: false, error: result.error }
+  return { success: true, data: { cafeId } }
+}
+
 export const closeVoting: ActionHandler<Env> = async ({ userId, params, tools }) => {
   const roomId = typeof params.roomId === 'string' ? params.roomId : ''
   if (!roomId) return { success: false, error: 'Missing room.' }

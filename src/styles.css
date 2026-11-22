@@ -6,18 +6,17 @@
 @source "../node_modules/deepspace/dist/**/*.js";
 
 /*
- * Theming — pure shadcn/ui CSS variables with [data-theme] selectors.
+ * Theming — shadcn/ui CSS variables with [data-theme] selectors.
  *
- * The @theme block below holds the default theme (slate). All other themes
- * live in `themes.css` as `[data-theme="<id>"]` override blocks. Switching
- * themes = changing the data-theme attribute on <html> in index.html. No
- * JS, no FOUC.
+ * The @theme block below holds the slate fallback. App themes live in
+ * `themes.css` as `[data-theme="<id>"]` override blocks. The active theme is
+ * selected on <html> in index.html.
  *
  * Status colors (success, warning, info) are intentionally NOT themed —
  * they stay consistent across every preset.
  */
 @theme {
-  /* shadcn core tokens — slate (default): neutral gray on near-black, indigo accent */
+  /* shadcn core tokens — neutral dark fallback */
   --color-background: #0a0a0a;
   --color-foreground: #e8eaed;
   --color-card: #161616;
@@ -60,7 +59,7 @@
   --color-info-foreground: #ffffff;
 
   /*
-   * Shadows — slate (default). Each theme in themes.css tunes these.
+   * Each theme in themes.css tunes these shadows.
    *
    * Toned down 2026-05: previous values were 8px/12px offset with
    * 32px/40px blur which read as a heavy halo under every Card on
@@ -164,12 +163,47 @@
   }
 
   body {
-    font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Avenir Next', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-size: 14px;
     color: var(--color-foreground);
+  }
+
+  h1, h2, h3 {
+    font-family: 'Chalkboard SE', 'Comic Sans MS', 'Bradley Hand', cursive;
+    letter-spacing: -0.025em;
+  }
+
+  html[data-theme="hojicha"] body {
+    background-image: radial-gradient(rgba(96, 111, 76, 0.08) 0.7px, transparent 0.7px);
+    background-size: 17px 17px;
+  }
+
+  html[data-theme="hojicha"] main {
+    background-image: radial-gradient(rgba(96, 111, 76, 0.08) 0.7px, transparent 0.7px);
+    background-size: 17px 17px;
+  }
+
+  .room-sheet {
+    position: relative;
+    border: 2px solid #69715e;
+    border-radius: 28px 24px 30px 25px;
+    background-color: var(--color-card);
+    box-shadow: 0 3px 0 rgba(67, 77, 54, 0.08);
+  }
+
+  .room-sheet::before {
+    position: absolute;
+    top: -11px;
+    left: 34px;
+    width: 86px;
+    height: 20px;
+    content: '';
+    transform: rotate(-4deg);
+    background: rgba(201, 151, 119, 0.36);
+    pointer-events: none;
   }
 
   /* Scrollbar styling */
