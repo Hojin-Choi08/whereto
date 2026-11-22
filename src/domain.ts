@@ -29,6 +29,12 @@ export type MemberStatus = (typeof MEMBER_STATUS)[number]
 export const ROOM_ROLES = ['host', 'member'] as const
 export type RoomRole = (typeof ROOM_ROLES)[number]
 
+export const RECOMMENDATION_SOURCES = ['ai', 'fallback'] as const
+export type RecommendationSource = (typeof RECOMMENDATION_SOURCES)[number]
+
+/** The host can ask for picks once at least this many members have filled in a card. */
+export const MIN_PREFS_TO_RECOMMEND = 2
+
 export type PriceLevel = 1 | 2 | 3
 
 export interface Cafe {
@@ -78,4 +84,22 @@ export interface PreferenceData {
   mustHave?: CafeTag[]
   budgetMax?: PriceLevel
   note?: string
+}
+
+export interface RecommendationData {
+  roomId: string
+  rank: number
+  cafeId: string
+  reason?: string
+  source?: RecommendationSource
+}
+
+/**
+ * Whether a member has actually said something. One definition, used by the
+ * room UI's counts and by `recommendCafes`' "at least 2" gate, so the button
+ * and the server can't disagree.
+ */
+export function hasPreference(p: Partial<PreferenceData> | undefined): boolean {
+  if (!p) return false
+  return Boolean(p.mood || p.budgetMax || (Array.isArray(p.mustHave) && p.mustHave.length > 0) || p.note?.trim())
 }

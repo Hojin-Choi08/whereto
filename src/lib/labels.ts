@@ -1,4 +1,4 @@
-import type { CafeTag, Mood, PriceLevel } from '@/domain'
+import type { CafeTag, Mood, PriceLevel } from '../domain'
 
 export const MOOD_LABELS: Record<Mood, { label: string; emoji: string }> = {
   focus: { label: 'Focus', emoji: '💻' },

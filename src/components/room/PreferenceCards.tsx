@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutations, useUserLookup } from 'deepspace'
 import { Avatar, AvatarFallback, AvatarImage, Badge, Textarea, cn, useToast } from '@/components/ui'
-import { CAFE_TAGS, LIMITS, MOODS, type CafeTag, type Mood, type PreferenceData, type PriceLevel } from '@/domain'
+import { CAFE_TAGS, LIMITS, MOODS, hasPreference, type CafeTag, type Mood, type PreferenceData, type PriceLevel } from '@/domain'
 import { BUDGET_LABELS, MOOD_LABELS, TAG_LABELS } from '@/lib/labels'
 
 type PrefRecord = { recordId: string; data: PreferenceData }
@@ -201,7 +201,7 @@ export function MemberCard({ userId, isHost, isYou, pref }: {
   const { getUser } = useUserLookup()
   const user = getUser(userId)
   const name = user?.name || 'Someone'
-  const filledIn = !!pref && (pref.mood || pref.budgetMax || (pref.mustHave?.length ?? 0) > 0 || pref.note)
+  const filledIn = hasPreference(pref)
 
   return (
     <li className="rounded-lg border border-border bg-card p-4">

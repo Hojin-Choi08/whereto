@@ -1,17 +1,21 @@
 /**
  * The room: /r/:roomId. Everything here is live via useQuery; what arrives is
- * already limited to members by `read: 'team'`. Day 1 implements the
- * `collecting` phase; recommending / voting / decided land on Day 2.
+ * already limited to members by `read: 'team'`. Phases follow rooms.status:
+ * collecting → recommending (everyone sees "thinking") → voting (3 picks).
  */
 
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
 import { useAuth } from 'deepspace'
-import { Badge, buttonVariants } from '@/components/ui'
+import { Badge, Button, buttonVariants, useToast } from '@/components/ui'
+import { PickCards } from '@/components/room/PickCards'
 import { MemberCard, MyPreferenceCard } from '@/components/room/PreferenceCards'
 import { ShareLink } from '@/components/room/ShareLink'
 import { Spinner } from '@/components/Spinner'
+import { MIN_PREFS_TO_RECOMMEND, hasPreference, type RoomStatus } from '@/domain'
+import { callAction } from '@/lib/actions'
 import { useRoom } from '@/lib/useRoom'
-import type { RoomStatus } from '@/domain'
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   collecting: 'Adding preferences',
@@ -20,12 +24,10 @@ const STATUS_LABEL: Record<RoomStatus, string> = {
   decided: 'Decided',
 }
 
-const MIN_PREFS_TO_RECOMMEND = 2
-
 export default function RoomPage() {
   const { roomId = '' } = useParams()
   const { userId } = useAuth()
-  const { status, room, members, preferences, preferencesReady } = useRoom(roomId)
+  const { status, room, members, preferences, preferencesReady, recommendations } = useRoom(roomId)
 
   if (status === 'loading') {
     return (
@@ -52,16 +54,29 @@ export default function RoomPage() {
   const isHost = room.data.hostId === userId
   const prefByUser = new Map(preferences.map((p) => [p.data.userId, p]))
   const mine = userId ? prefByUser.get(userId) : undefined
-  const filledCount = members.filter((m) => prefByUser.has(m.data.userId)).length
+  const filledCount = members.filter((m) => hasPreference(prefByUser.get(m.data.userId)?.data)).length
+  const phase = room.data.status
+
+  const everyone = (
+    <section className="space-y-3">
+      <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+        {phase === 'collecting' ? 'Everyone' : 'What everyone asked for'}
+      </h2>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {members.map((m) => (
+          <MemberCard key={m.recordId} userId={m.data.userId} isHost={m.data.userId === room.data.hostId}
+            isYou={m.data.userId === userId} pref={prefByUser.get(m.data.userId)?.data} />
+        ))}
+      </ul>
+    </section>
+  )
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 text-foreground sm:py-10">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{room.data.name}</h1>
-          <Badge variant={room.data.status === 'decided' ? 'success' : 'secondary'}>
-            {STATUS_LABEL[room.data.status] ?? room.data.status}
-          </Badge>
+          <Badge variant={phase === 'decided' ? 'success' : 'secondary'}>{STATUS_LABEL[phase] ?? phase}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
           {room.data.area ? `${room.data.area} · ` : ''}
@@ -69,35 +84,73 @@ export default function RoomPage() {
         </p>
       </header>
 
-      {room.data.status === 'collecting' ? (
+      {phase === 'collecting' && (
         <>
           {isHost && <ShareLink joinCode={room.data.joinCode} roomName={room.data.name} />}
-
           <MyPreferenceCard roomId={roomId} mine={mine} preferencesReady={preferencesReady} />
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Everyone</h2>
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {members.map((m) => (
-                <MemberCard key={m.recordId} userId={m.data.userId} isHost={m.data.userId === room.data.hostId}
-                  isYou={m.data.userId === userId} pref={prefByUser.get(m.data.userId)?.data} />
-              ))}
-            </ul>
-          </section>
-
-          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-            {isHost
-              ? filledCount >= MIN_PREFS_TO_RECOMMEND
-                ? 'Enough people have weighed in to find a café.'
-                : `Waiting for at least ${MIN_PREFS_TO_RECOMMEND} people to add preferences before finding a café.`
-              : 'When everyone is in, the host will find three cafés for the group to vote on.'}
-          </p>
+          {everyone}
+          {isHost ? (
+            <FindCafeButton roomId={roomId} filledCount={filledCount} />
+          ) : (
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              When everyone is in, the host will find three cafés for the group.
+            </p>
+          )}
         </>
-      ) : (
-        <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
-          This room has moved on to: {STATUS_LABEL[room.data.status] ?? room.data.status}.
-        </p>
       )}
+
+      {phase === 'recommending' && (
+        <>
+          <div className="flex min-h-48 items-center justify-center rounded-lg border border-border bg-card p-8">
+            <Spinner label="Finding three cafés for the group…" />
+          </div>
+          {everyone}
+        </>
+      )}
+
+      {(phase === 'voting' || phase === 'decided') && (
+        <>
+          {recommendations.length > 0 ? (
+            <PickCards picks={recommendations} />
+          ) : (
+            <div className="flex min-h-32 items-center justify-center rounded-lg border border-border bg-card p-6">
+              <Spinner label="Loading picks…" />
+            </div>
+          )}
+          {everyone}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Host-only. The server re-checks every gate; this just avoids pointless clicks. */
+function FindCafeButton({ roomId, filledCount }: { roomId: string; filledCount: number }) {
+  const [busy, setBusy] = useState(false)
+  const { error } = useToast()
+  const ready = filledCount >= MIN_PREFS_TO_RECOMMEND
+
+  async function find() {
+    setBusy(true)
+    const res = await callAction<{ source: string }>('recommendCafes', { roomId })
+    // On success the room flips to `voting` via the live subscription and this
+    // component unmounts; only failures need handling here.
+    if (!res.success) {
+      error('Couldn’t find cafés', res.error)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+      <p className="text-sm text-muted-foreground">
+        {ready
+          ? 'Everyone in? Get three cafés picked for the group. You can only do this once.'
+          : `Waiting for at least ${MIN_PREFS_TO_RECOMMEND} people to add preferences (${filledCount} so far).`}
+      </p>
+      <Button className="mt-3 w-full sm:mt-0 sm:w-auto" onClick={find} disabled={!ready || busy} loading={busy}>
+        {!busy && <Sparkles aria-hidden />} Find our café
+      </Button>
     </div>
   )
 }

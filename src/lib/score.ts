@@ -18,7 +18,7 @@
  * moods/tags and out-of-range budgets are ignored, duplicate tags count once.
  */
 
-import { CAFE_TAGS, MOODS, type Cafe, type CafeTag, type Mood, type PreferenceData, type PriceLevel } from '@/domain'
+import { CAFE_TAGS, MOODS, type Cafe, type CafeTag, type Mood, type PreferenceData, type PriceLevel } from '../domain'
 
 export type ScoringPreference = Pick<PreferenceData, 'mood' | 'mustHave' | 'budgetMax'>
 
